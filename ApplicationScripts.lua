@@ -1,245 +1,225 @@
---leaderstats script
-game.Players.PlayerAdded:Connect(function(player)
-	local stats = Instance.new("Folder")
-	stats.Name = "leaderstats"
-	stats.Parent = player
+----------------------------------------------------------------
+-- Part 1: ServerScriptService - CoinScript
+----------------------------------------------------------------
 
-	local coins = Instance.new("IntValue")
-	coins.Name = "coins"
-	coins.Value = 0
-	coins.Parent = stats
+local collectionService = game:GetService("CollectionService")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
 
-	local speed = Instance.new("IntValue")
-	speed.Name = "speed"
-	speed.Value = 16
-	speed.Parent = stats
+local coinsTag = collectionService:GetTagged("Coins")
+local spinningCoins = {}
 
-	local activated = Instance.new("BoolValue")
-	activated.Name = "activated"
-	activated.Value = false
-	activated.Parent = stats
+for i, coin in pairs(coinsTag) do
+	local pressable = true
+	coin.Position = Vector3.new(math.random(-50, 50), 5, math.random(-50, 50))
 
-	local clicks = Instance.new("IntValue")
-	clicks.Name = "clicks"
-	clicks.Value = 0
-	clicks.Parent = stats
+	coin.Touched:Connect(function(otherPart)
+		local player = Players:GetPlayerFromCharacter(otherPart.Parent)
+		if not player then return end
 
-    local jumps = Instance.new("IntValue")
-	jumps.Name = "jumps"
-	jumps.Value = 5
-	jumps.Parent = stats
+		local leaderstats = player:FindFirstChild("leaderstats")
+		local coinsStat = leaderstats and leaderstats:FindFirstChild("Coins")
+		local coinAddition = leaderstats and leaderstats:FindFirstChild("CoinAddition")
+		local coinMeter = player.PlayerGui.Shop.CoinMeter
 
-	local username = player.Name
-	print(username .. " has joined the game!")
-
-	player.CharacterAdded:Connect(function(character)
-		print(username .. "'s character has spawned!")
+		if player and coin and pressable and coinsStat then
+			pressable = false
+			coin.Material = Enum.Material.Neon
+			coinsStat.Value += coinAddition.Value
+			coinMeter.Text = ("$".. coinsStat.Value)
+			wait(1)
+			coin.Position = Vector3.new(math.random(-50, 50), 5, math.random(-50, 50))
+			coin.Material = Enum.Material.Plastic
+			wait(0.5)
+			pressable = true
+		end
 	end)
 
-	print("Leaderstats initialized for " .. username)
-end)
---script inside a tool
-local tool = script.Parent
-local handle = tool:WaitForChild("Handle")
-local running = false
-local player = nil
-local clicks = nil
-local activated = nil
-local function onEquipped()
-	local character = tool.Parent
-	player = game.Players:GetPlayerFromCharacter(character)
-	if player then
-		local stats = player:FindFirstChild("leaderstats")
-		if stats then
-			activated = stats:FindFirstChild("activated")
-			clicks = stats:FindFirstChild("clicks")
-		end
-	end
+	spinningCoins[coin] = 0
 end
-tool.Equipped:Connect(onEquipped)
 
-tool.Activated:Connect(function()
-	if activated and clicks and not running then
-		running = true
-		activated.Value = true
-		clicks.Value += 1
+local spinSpeed = 90
 
-		for i = 1, 10 do
-			handle.Size += Vector3.new(0.05, 0.05, 0.05)
-			task.wait(0.05)
-		end
-
-		while activated.Value do
-			handle.Color = Color3.new(math.random(), math.random(), math.random())
-			task.wait(1)
+RunService.Heartbeat:Connect(function(deltaTime)
+	for coin, rotation in pairs(spinningCoins) do
+		if coin and coin.Parent then
+			rotation += spinSpeed * deltaTime
+			rotation %= 360
+			coin.CFrame = CFrame.new(coin.Position) * CFrame.Angles(0, math.rad(rotation), 0)
+			spinningCoins[coin] = rotation
+		else
+			spinningCoins[coin] = nil
 		end
 	end
 end)
 
-tool.Deactivated:Connect(function()
-	if activated then
-		activated.Value = false
-		handle.Size = Vector3.new(1, 1, 1)
-		running = false
-	end
-end)
---script inside a coin
-local coin = Instance.new("Part")
-coin.Name = "Coin"
-coin.Size = Vector3.new(0.422, 6.192, 4.589)
-coin.Position = Vector3.new(-0.352, 5.235, -12.702)
-coin.Orientation = Vector3.new(0, 90, 180)
-coin.Anchored = true
-coin.Parent = workspace
-coin.Shape = "Cylinder"
-coin.CanCollide = false
-coin.BrickColor = BrickColor.new("New Yeller")
 
-local canTouch = true
+----------------------------------------------------------------
+-- Part 2: ServerScriptService - leaderstatScript
+----------------------------------------------------------------
 
-coin.Position = Vector3.new(math.random(-50, 50), 7.293, math.random(-50, 50))
-task.spawn(function()
-	while true do
-		coin.Orientation += Vector3.new(0, 5, 0)
-		task.wait(0.05)
-	end
+game.Players.PlayerAdded:Connect(function(plr)
+	local leaderstats = Instance.new("Folder", plr)
+	leaderstats.Name = "leaderstats"
+
+	local coins = Instance.new("IntValue", leaderstats)
+	coins.Name = "Coins"
+	coins.Value = 0
+
+	local speed = Instance.new("IntValue", leaderstats)
+	speed.Name = "Speed"
+	speed.Value = 16
+
+	local coinAddition = Instance.new("IntValue", leaderstats)
+	coinAddition.Name = "CoinAddition"
+	coinAddition.Value = 1
+
+	local coinColor = Instance.new("Color3Value", leaderstats)
+	coinColor.Name = "CoinColor"
+	coinColor.Value = Color3.fromRGB(255, 255, 0)
 end)
 
-coin.Touched:Connect(function(otherPart)
-	local character = otherPart:FindFirstAncestorOfClass("Model")
-	local player = character and game.Players:GetPlayerFromCharacter(character)
-	local humanoid = character and character:FindFirstChild("Humanoid")
 
-	if player and humanoid and canTouch then
-		local leaderstats = player:FindFirstChild("leaderstats")
-		local coinStat = leaderstats and leaderstats:FindFirstChild("coins")
-		local speedStat = leaderstats and leaderstats:FindFirstChild("speed")
+local shopFunction = game.ReplicatedStorage.ShopFunction
 
-		if coinStat and speedStat then
-			canTouch = false
-			coinStat.Value += 1
-			speedStat.Value += 1
+shopFunction.OnServerInvoke = function(plr, upgradeName, upgradePrice)
+	local purchaseSuccesful = false
 
-			coin.Transparency = 1
-			coin.CanCollide = false
+	local leaderstats = plr.leaderstats
+	local coins = leaderstats.Coins
+	local speed = leaderstats.Speed
+	local coinAddition = leaderstats.CoinAddition
+	local coinColor = leaderstats.CoinColor
+	local coinMeter = plr.PlayerGui.Shop.CoinMeter
 
-			coin.Position = Vector3.new(math.random(-50, 50), 7.293, math.random(-50, 50))
+	if coins.Value >= upgradePrice then
+		coins.Value -= upgradePrice
+		coinMeter.Text = ("$".. coins.Value)
+		purchaseSuccesful = true
 
-			wait(2)
+		if upgradeName == "SpeedUpgrade" then
+			speed.Value += 1
+			plr.Character.Humanoid.WalkSpeed = speed.Value
 
-			coin.Transparency = 0
-			coin.CanCollide = true
-			wait(1)
-			canTouch = true
+		elseif upgradeName == "CoinUpgrade" then
+			coinAddition.Value += 1
+
+		elseif upgradeName == "ColorUpgrade" then
+			coinColor.Value = Color3.fromRGB(
+				math.random(0, 255),
+				math.random(0, 255),
+				math.random(0, 255)
+			)
+		end
+	end
+
+	return purchaseSuccesful
+end
+
+
+----------------------------------------------------------------
+-- Part 3: StarterGui - Shop(ScreenGui) - ShopScript
+----------------------------------------------------------------
+
+local gui = script.Parent
+local openShop = gui.OpenShop
+
+local shopButtons = gui.ShopBackground
+local speedUpgrade = shopButtons.SpeedUpgrade
+local colorUpgrade = shopButtons.ChangeCoinColor
+local coinUpgrade = shopButtons.CoinUpgrade
+local purchaseMsg = shopButtons.Welcome
+
+local shopButtonCollection = {shopButtons, speedUpgrade, colorUpgrade, coinUpgrade, purchaseMsg}
+local shopIsOpen = true
+
+local shopFunction = game.ReplicatedStorage.ShopFunction
+
+openShop.MouseButton1Click:Connect(function()
+	shopIsOpen = not shopIsOpen
+
+	for _, element in ipairs(shopButtonCollection) do
+		if shopIsOpen then
+			element.Visible = false
+		else
+			element.Visible = true
 		end
 	end
 end)
---script that changes walking speed with the speed leaderstat changing
-local player = game.Players:GetPlayerFromCharacter(script.Parent)
-if not player then return end
 
-local leaderstats = player:WaitForChild("leaderstats")
-local speedStat = leaderstats:WaitForChild("speed")
-local humanoid = script.Parent:WaitForChild("Humanoid")
+speedUpgrade.MouseButton1Click:Connect(function()
+	local purchaseSuccesful = shopFunction:InvokeServer("SpeedUpgrade", 1)
 
-humanoid.WalkSpeed = speedStat.Value
-
-speedStat.Changed:Connect(function()
-	humanoid.WalkSpeed = speedStat.Value
-end)
---teleport pad script
-local pad = Instance.new("Part")
-pad.Name = "TeleportPad"
-pad.Size = Vector3.new(4, 1, 2)
-pad.Position = Vector3.new(29.02, 0.5, -23.11)
-pad.Anchored = true
-pad.Parent = workspace
-
-local destination = Instance.new("Part")
-destination.Name = "TeleportDestination"
-destination.Size = Vector3.new(4, 1, 2)
-destination.Position = Vector3.new(26.072, 0.5, -57.315)
-destination.Anchored = true
-destination.Parent = workspace
-
-local canTeleport = true
-
-pad.Touched:Connect(function(hit)
-	local humanoid = hit.Parent:FindFirstChild("Humanoid")
-
-	if humanoid and canTeleport then
-		canTeleport = false
-		hit.Parent:MoveTo(destination.Position)
-
-		local effect = Instance.new("ParticleEmitter")
-		effect.Rate = 50
-		effect.Lifetime = NumberRange.new(1)
-		effect.Parent = pad
-		game:GetService("Debris"):AddItem(effect, 1)
-
-		task.wait(2)
-		canTeleport = true
-	end
-end)
---Script has color changing part that prints players name when touched
-local part = Instance.new("Part")
-part.Size = Vector3.new(4, 1, 4)
-part.Position = Vector3.new(-22.75, 0.5, -4.23)
-part.Anchored = true
-part.Parent = workspace
-part.Touched:Connect(function(hit)
-	local character = hit.Parent
-	local player = game.Players:GetPlayerFromCharacter(character)
-	if player then
-		print(player.Name .. " touched the part!")
-	end
-end)
-
-local red = Color3.new(1, 0, 0)
-local green = Color3.new(0, 1, 0)
-local blue = Color3.new(0, 0, 1)
-part.Color = red
-
-while true do
-	wait(1)
-	if part.Color == red then
-		part.Color = green
-	elseif part.Color == green then
-		part.Color = blue
+	if purchaseSuccesful then
+		purchaseMsg.Text = "Purchase Successful!"
+		purchaseMsg.BackgroundColor3 = Color3.new(0.431373, 0.85098, 0.0862745)
+		wait(3)
+		purchaseMsg.BackgroundColor3 = Color3.fromRGB(0, 179, 255)
+		purchaseMsg.Text = "Welcome to my shop!"
 	else
-		part.Color = red
+		purchaseMsg.Text = "Purchase failed"
+		purchaseMsg.BackgroundColor3 = Color3.new(0.686275, 0, 0.0117647)
+		wait(3)
+		purchaseMsg.Text = "Welcome to my shop!"
+		purchaseMsg.BackgroundColor3 = Color3.fromRGB(0, 179, 255)
+	end
+end)
+
+colorUpgrade.MouseButton1Click:Connect(function()
+	local purchaseSuccesful = shopFunction:InvokeServer("ColorUpgrade", 10)
+
+	if purchaseSuccesful then
+		purchaseMsg.Text = "Purchase Successful!"
+		purchaseMsg.BackgroundColor3 = Color3.new(0.431373, 0.85098, 0.0862745)
+		wait(3)
+		purchaseMsg.Text = "Welcome to my shop!"
+		purchaseMsg.BackgroundColor3 = Color3.fromRGB(0, 179, 255)
+	else
+		purchaseMsg.Text = "Purchase failed"
+		purchaseMsg.BackgroundColor3 = Color3.new(0.686275, 0, 0.0117647)
+		wait(3)
+		purchaseMsg.Text = "Welcome to my shop!"
+		purchaseMsg.BackgroundColor3 = Color3.fromRGB(0, 179, 255)
+	end
+end)
+
+coinUpgrade.MouseButton1Click:Connect(function()
+	local purchaseSuccesful = shopFunction:InvokeServer("CoinUpgrade", 10)
+
+	if purchaseSuccesful then
+		purchaseMsg.Text = "Purchase Successful!"
+		purchaseMsg.BackgroundColor3 = Color3.new(0.431373, 0.85098, 0.0862745)
+		wait(3)
+		purchaseMsg.Text = "Welcome to my shop!"
+		purchaseMsg.BackgroundColor3 = Color3.fromRGB(0, 179, 255)
+	else
+		purchaseMsg.Text = "Purchase failed"
+		purchaseMsg.BackgroundColor3 = Color3.new(0.686275, 0, 0.0117647)
+		wait(3)
+		purchaseMsg.Text = "Welcome to my shop!"
+		purchaseMsg.BackgroundColor3 = Color3.fromRGB(0, 179, 255)
+	end
+end)
+
+
+----------------------------------------------------------------
+-- Part 4: StarterPlayer - StarterPlayerScripts - UpdateCoinColor
+----------------------------------------------------------------
+
+local collectionService = game:GetService("CollectionService")
+local player = game.Players.LocalPlayer
+
+local function updateCoinColors()
+	local coinColor = player:WaitForChild("leaderstats"):WaitForChild("CoinColor").Value
+	local coins = collectionService:GetTagged("Coins")
+	for _, coin in ipairs(coins) do
+		coin.Color = coinColor
 	end
 end
---Script for clickable volor changing part
-local button = Instance.new("Part")
-button.Size = Vector3.new(4, 1, 4)
-button.Position = Vector3.new(10, 5, 0)
-button.Anchored = true
-button.BrickColor = BrickColor.new("Bright yellow")
-button.Name = "Button"
-button.Parent = workspace
 
-local clickDetector = Instance.new("ClickDetector")
-clickDetector.Parent = button
+updateCoinColors()
 
-local function onClick(player)
-	print(player.Name .. " clicked the button!")
-
-	button.BrickColor = BrickColor.new("Bright green")
-	wait(1)
-
-	button.BrickColor = BrickColor.new("Bright yellow")
-end
-
-clickDetector.MouseClick:Connect(onClick)
-
-while true do
-	for i = 0, 1, 0.01 do
-		button.Transparency = i
-		wait(0.05)
-	end
-	for i = 1, 0, -0.01 do
-		button.Transparency = i
-		wait(0.05)
-	end
-end
+local coinColorValue = player:WaitForChild("leaderstats"):WaitForChild("CoinColor")
+coinColorValue:GetPropertyChangedSignal("Value"):Connect(function()
+	updateCoinColors()
+end)
